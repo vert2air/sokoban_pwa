@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="倉庫番">
+<meta name="description" content="クラシック倉庫番パズルゲーム">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>倉庫番</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap');
+
+  :root {
+    --bg: #0d0d1a;
+    --bg2: #1a1a2e;
+    --bg3: #16213e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --gold: #f5a623;
+    --green: #4caf50;
+    --cyan: #00b4d8;
+    --wall: #2d4a7a;
+    --wall-light: #3d6a9a;
+    --floor: #1e2d4a;
+    --floor-dark: #161f33;
+    --box: #c0882a;
+    --box-light: #f5a623;
+    --box-done: #4caf50;
+    --box-done-light: #80e27e;
+    --target: #e94560;
+    --player: #00b4d8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+
+  body {
+    background: var(--bg);
+    color: #eee;
+    font-family: 'DotGothic16', monospace;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #header {
+    background: var(--bg2);
+    border-bottom: 2px solid var(--accent2);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  #title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 1px;
+  }
+
+  #info {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    color: #aaa;
+  }
+
+  #info span { color: var(--cyan); font-weight: bold; }
+
+  #game-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  #canvas-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #gameCanvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #controls {
+    flex-shrink: 0;
+    background: var(--bg2);
+    border-top: 2px solid var(--accent2);
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto 4px;
+  }
+
+  .dpad-btn {
+    background: var(--bg3);
+    border: 2px solid var(--accent2);
+    border-radius: 4px;
+    color: #eee;
+    font-size: 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.08s, border-color 0.08s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dpad-btn:active, .dpad-btn.pressed {
+    background: var(--accent2);
+    border-color: var(--cyan);
+  }
+
+  .dpad-empty { visibility: hidden; }
+
+  #btn-up    { grid-column: 2; grid-row: 1; }
+  #btn-left  { grid-column: 1; grid-row: 2; }
+  #btn-center { grid-column: 2; grid-row: 2; background: transparent; border: none; }
+  #btn-right { grid-column: 3; grid-row: 2; }
+  #btn-down  { grid-column: 2; grid-row: 3; }
+
+  #action-bar {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 8px;
+    justify-content: center;
+  }
+
+  .action-btn {
+    background: var(--bg3);
+    border: 2px solid var(--accent2);
+    border-radius: 4px;
+    color: #eee;
+    font-family: 'DotGothic16', monospace;
+    font-size: 13px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .action-btn:active { background: var(--accent2); }
+  .action-btn.accent { border-color: var(--accent); color: var(--accent); }
+
+  /* Overlay screens */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+  }
+
+  .overlay.hidden { display: none; }
+
+  .overlay-box {
+    background: var(--bg2);
+    border: 3px solid var(--accent2);
+    border-radius: 8px;
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 320px;
+    width: 100%;
+  }
+
+  .overlay-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px;
+    color: var(--gold);
+    margin-bottom: 16px;
+    line-height: 1.8;
+  }
+
+  .overlay-sub {
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 20px;
+    line-height: 1.8;
+  }
+
+  .overlay-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-family: 'DotGothic16', monospace;
+    font-size: 15px;
+    padding: 12px 28px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .overlay-btn.secondary {
+    background: var(--bg3);
+    border: 2px solid var(--accent2);
+    color: #eee;
+  }
+
+  .level-select {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .level-btn {
+    background: var(--bg3);
+    border: 2px solid var(--accent2);
+    border-radius: 4px;
+    color: #eee;
+    font-family: 'DotGothic16', monospace;
+    font-size: 12px;
+    padding: 8px 4px;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .level-btn.cleared { border-color: var(--green); color: var(--green); }
+  .level-btn.current { border-color: var(--gold); color: var(--gold); }
+
+  .stars { color: var(--gold); font-size: 16px; letter-spacing: 2px; margin: 8px 0; }
+
+  #toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg2);
+    border: 2px solid var(--cyan);
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 13px;
+    color: var(--cyan);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 200;
+    white-space: nowrap;
+  }
+
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="title">倉庫番</div>
+  <div id="info">
+    <div>ステージ <span id="lvl-disp">1</span></div>
+    <div>手数 <span id="move-disp">0</span></div>
+  </div>
+</div>
+
+<div id="game-area">
+  <div id="canvas-wrapper">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="dpad-empty"></div>
+  <button class="dpad-btn" id="btn-up">▲</button>
+  <div class="dpad-empty"></div>
+  <button class="dpad-btn" id="btn-left">◀</button>
+  <div id="btn-center" class="dpad-btn dpad-empty"></div>
+  <button class="dpad-btn" id="btn-right">▶</button>
+  <div class="dpad-empty"></div>
+  <button class="dpad-btn" id="btn-down">▼</button>
+  <div class="dpad-empty"></div>
+</div>
+
+<div id="action-bar">
+  <button class="action-btn accent" id="btn-undo">↩ 戻す</button>
+  <button class="action-btn" id="btn-restart">↺ やり直し</button>
+  <button class="action-btn" id="btn-levels">ステージ</button>
+</div>
+
+<div id="toast"></div>
+
+<!-- Title Screen -->
+<div class="overlay" id="title-screen">
+  <div class="overlay-box">
+    <div class="overlay-title">🏭 倉庫番</div>
+    <div class="overlay-sub">
+      荷物を目標の場所まで<br>押して運ぼう！<br><br>
+      📦 荷物を押す<br>🎯 目標地点へ運ぶ<br>
+    </div>
+    <button class="overlay-btn" id="btn-start">ゲームスタート</button>
+  </div>
+</div>
+
+<!-- Clear Screen -->
+<div class="overlay hidden" id="clear-screen">
+  <div class="overlay-box">
+    <div class="overlay-title">STAGE CLEAR!</div>
+    <div class="stars" id="clear-stars">★★★</div>
+    <div class="overlay-sub" id="clear-msg">手数: 0</div>
+    <button class="overlay-btn" id="btn-next">次のステージ ▶</button>
+    <button class="overlay-btn secondary" id="btn-retry">もう一度</button>
+  </div>
+</div>
+
+<!-- Level Select Screen -->
+<div class="overlay hidden" id="level-screen">
+  <div class="overlay-box" style="max-width:340px">
+    <div class="overlay-title" style="font-size:11px">ステージ選択</div>
+    <div class="level-select" id="level-grid"></div>
+    <button class="overlay-btn secondary" id="btn-close-levels">閉じる</button>
+  </div>
+</div>
+
+<!-- All Clear Screen -->
+<div class="overlay hidden" id="allclear-screen">
+  <div class="overlay-box">
+    <div class="overlay-title">全ステージ<br>クリア！</div>
+    <div class="overlay-sub">おめでとうございます！<br>全てのステージをクリアしました！</div>
+    <button class="overlay-btn" id="btn-allclear">もう一度最初から</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// LEVELS (XSokoban format)
+// Cells: # wall, @ player, + player on target, $ box, * box on target, . target, space floor
+// ============================================================
+const LEVELS = [
+  {
+    name: "入門1",
+    par: 6,
+    map: [
+      "#####",
+      "#@$.#",
+      "#####",
+    ]
+  },
+  {
+    name: "入門2",
+    par: 6,
+    map: [
+      "######",
+      "#    #",
+      "# @$ #",
+      "#  . #",
+      "######",
+    ]
+  },
+  {
+    name: "初級1",
+    par: 16,
+    map: [
+      "######",
+      "#  $.#",
+      "# .$ #",
+      "# @  #",
+      "######",
+    ]
+  },
+  {
+    name: "初級2",
+    par: 20,
+    map: [
+      "########",
+      "#      #",
+      "# .**. #",
+      "# $  $ #",
+      "#  @   #",
+      "########",
+    ]
+  },
+  {
+    name: "初級3",
+    par: 25,
+    map: [
+      "########",
+      "#  # . #",
+      "#  # $ #",
+      "#  @   #",
+      "# .$   #",
+      "#  #   #",
+      "########",
+    ]
+  },
+  {
+    name: "中級1",
+    par: 20,
+    map: [
+      "#######",
+      "#     #",
+      "# .$  #",
+      "#  $. #",
+      "#  @  #",
+      "#######",
+    ]
+  },
+  {
+    name: "中級2",
+    par: 20,
+    map: [
+      "#######",
+      "#  @  #",
+      "# $ $ #",
+      "# . . #",
+      "#     #",
+      "#######",
+    ]
+  },
+  {
+    name: "中級3",
+    par: 40,
+    map: [
+      " ######",
+      "##    #",
+      "#  ## #",
+      "# $.  #",
+      "## $  #",
+      " # .@##",
+      " #   #",
+      " #####",
+    ]
+  },
+  {
+    name: "上級1",
+    par: 30,
+    map: [
+      "########",
+      "#  @   #",
+      "# $ $  #",
+      "# . .  #",
+      "#   $  #",
+      "#   .  #",
+      "########",
+    ]
+  },
+  {
+    name: "上級2",
+    par: 50,
+    map: [
+      "########",
+      "#  .   #",
+      "#   $  #",
+      "# .$$. #",
+      "#  $   #",
+      "#   .  #",
+      "#  @   #",
+      "########",
+    ]
+  },
+  {
+    name: "挑戦1",
+    par: 40,
+    map: [
+      "#######",
+      "#  @  #",
+      "# $   #",
+      "# .$. #",
+      "# $   #",
+      "#  .  #",
+      "#######",
+    ]
+  },
+  {
+    name: "挑戦2",
+    par: 25,
+    map: [
+      "  ####   ",
+      "### ####",
+      "#     $ #",
+      "# #  #$ #",
+      "# . .#@ #",
+      "#########",
+    ]
+  },
+  {
+    name: "難関1",
+    par: 30,
+    map: [
+      "#####  ",
+      "#   ## ",
+      "#@$  # ",
+      "## $ # ",
+      " #.  # ",
+      " #.###",
+      " ###   ",
+    ]
+  },
+  {
+    name: "難関2",
+    par: 35,
+    map: [
+      " ###### ",
+      " #    # ",
+      "## $$ # ",
+      "#  .  # ",
+      "# $.@ # ",
+      "#  .  # ",
+      "####### ",
+    ]
+  },
+  {
+    name: "最終",
+    par: 50,
+    map: [
+      " ###### ",
+      "##    # ",
+      "# $$  # ",
+      "# . . # ",
+      "#  @  # ",
+      "# . . # ",
+      "# $$  # ",
+      "##    # ",
+      " ###### ",
+    ]
+  },
+];
+
+// ============================================================
+// Cell types
+// ============================================================
+const WALL   = 1;
+const FLOOR  = 2;
+const TARGET = 3;
+const BOX    = 4;
+const BOX_T  = 5; // box on target
+const PLAYER = 6;
+const PLAY_T = 7; // player on target
+
+// ============================================================
+// Game State
+// ============================================================
+let state = {
+  level: 0,
+  grid: [],
+  playerPos: {x:0,y:0},
+  moves: 0,
+  history: [],
+  cleared: [],
+};
+
+function parseLevel(idx) {
+  const lv = LEVELS[idx];
+  const rows = lv.map;
+  const grid = [];
+  let px = 0, py = 0;
+  for (let r = 0; r < rows.length; r++) {
+    const row = [];
+    for (let c = 0; c < rows[r].length; c++) {
+      const ch = rows[r][c];
+      let cell = FLOOR;
+      if (ch === '#') cell = WALL;
+      else if (ch === '.') cell = TARGET;
+      else if (ch === '$') cell = BOX;
+      else if (ch === '*') cell = BOX_T;
+      else if (ch === '@') { cell = PLAYER; px = c; py = r; }
+      else if (ch === '+') { cell = PLAY_T; px = c; py = r; }
+      row.push(cell);
+    }
+    grid.push(row);
+  }
+  return { grid, playerPos: {x:px,y:py} };
+}
+
+function loadLevel(idx) {
+  const {grid, playerPos} = parseLevel(idx);
+  state.level = idx;
+  state.grid = grid;
+  state.playerPos = playerPos;
+  state.moves = 0;
+  state.history = [];
+  document.getElementById('lvl-disp').textContent = idx + 1;
+  document.getElementById('move-disp').textContent = 0;
+  render();
+}
+
+function getCell(grid, x, y) {
+  if (y < 0 || y >= grid.length) return WALL;
+  if (x < 0 || x >= grid[y].length) return WALL;
+  return grid[y][x];
+}
+
+function setCell(grid, x, y, v) {
+  grid[y][x] = v;
+}
+
+function isBox(c) { return c === BOX || c === BOX_T; }
+function isTarget(c) { return c === TARGET || c === BOX_T || c === PLAY_T; }
+function isFloor(c) { return c !== WALL && !isBox(c); }
+
+function move(dx, dy) {
+  const {grid, playerPos} = state;
+  const nx = playerPos.x + dx;
+  const ny = playerPos.y + dy;
+  const nc = getCell(grid, nx, ny);
+
+  if (nc === WALL) return;
+
+  // Save snapshot for undo
+  const snapshot = {
+    grid: state.grid.map(r => [...r]),
+    playerPos: {...playerPos},
+    moves: state.moves,
+  };
+
+  if (isBox(nc)) {
+    const bx = nx + dx, by = ny + dy;
+    const bc = getCell(grid, bx, by);
+    if (bc === WALL || isBox(bc)) return;
+    // Move box
+    const newBox = isTarget(bc) ? BOX_T : BOX;
+    setCell(grid, bx, by, newBox);
+    setCell(grid, nx, ny, isTarget(nc) ? TARGET : FLOOR);
+  }
+
+  // Move player
+  const wasOnTarget = isTarget(getCell(grid, playerPos.x, playerPos.y));
+  setCell(grid, playerPos.x, playerPos.y, wasOnTarget ? TARGET : FLOOR);
+  const newPlayerCell = isTarget(getCell(grid, nx, ny)) ? PLAY_T : PLAYER;
+  // Note: after box move, nc might have changed
+  const curNc = getCell(grid, nx, ny);
+  setCell(grid, nx, ny, isTarget(curNc) ? PLAY_T : PLAYER);
+
+  state.playerPos = {x:nx, y:ny};
+  state.moves++;
+  state.history.push(snapshot);
+
+  document.getElementById('move-disp').textContent = state.moves;
+  render();
+  checkClear();
+}
+
+function undo() {
+  if (state.history.length === 0) { showToast('これ以上戻れません'); return; }
+  const snap = state.history.pop();
+  state.grid = snap.grid;
+  state.playerPos = snap.playerPos;
+  state.moves = snap.moves;
+  document.getElementById('move-disp').textContent = snap.moves;
+  render();
+}
+
+function checkClear() {
+  const grid = state.grid;
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < grid[r].length; c++)
+      if (grid[r][c] === BOX) return; // uncompleted box
+  // All boxes on targets!
+  state.cleared[state.level] = state.moves;
+  saveProgress();
+  showClearScreen();
+}
+
+// ============================================================
+// Canvas Rendering
+// ============================================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let CELL = 40;
+
+function calcCellSize() {
+  const wrapper = document.getElementById('game-area');
+  const maxW = wrapper.clientWidth - 16;
+  const maxH = wrapper.clientHeight - 16;
+  const grid = state.grid;
+  if (!grid.length) return;
+  const cols = Math.max(...grid.map(r => r.length));
+  const rows = grid.length;
+  CELL = Math.floor(Math.min(maxW / cols, maxH / rows, 52));
+  CELL = Math.max(CELL, 20);
+}
+
+function render() {
+  calcCellSize();
+  const grid = state.grid;
+  const cols = Math.max(...grid.map(r => r.length));
+  const rows = grid.length;
+  canvas.width = cols * CELL;
+  canvas.height = rows * CELL;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < (grid[r]||[]).length; c++) {
+      drawCell(c, r, grid[r][c]);
+    }
+  }
+}
+
+function drawCell(cx, cy, type) {
+  const x = cx * CELL, y = cy * CELL, s = CELL;
+
+  if (type === WALL) {
+    drawWall(x, y, s);
+  } else if (type === FLOOR) {
+    drawFloor(x, y, s);
+  } else if (type === TARGET) {
+    drawFloor(x, y, s);
+    drawTarget(x, y, s);
+  } else if (type === BOX) {
+    drawFloor(x, y, s);
+    drawBox(x, y, s, false);
+  } else if (type === BOX_T) {
+    drawFloor(x, y, s);
+    drawBox(x, y, s, true);
+  } else if (type === PLAYER) {
+    drawFloor(x, y, s);
+    drawPlayer(x, y, s, false);
+  } else if (type === PLAY_T) {
+    drawFloor(x, y, s);
+    drawTarget(x, y, s);
+    drawPlayer(x, y, s, true);
+  }
+}
+
+function drawWall(x, y, s) {
+  ctx.fillStyle = '#1e3a5f';
+  ctx.fillRect(x, y, s, s);
+  // Brick pattern
+  ctx.fillStyle = '#2d4a7a';
+  const bh = Math.ceil(s/3);
+  for (let i = 0; i < 3; i++) {
+    const by = y + i * bh;
+    const offset = (i % 2 === 0) ? 0 : Math.ceil(s/2);
+    ctx.fillRect(x + offset, by, s/2 - 1, bh - 1);
+    if (offset === 0) ctx.fillRect(x + s/2, by, s/2 - 1, bh - 1);
+  }
+  // Top-left highlight
+  ctx.fillStyle = '#3d6a9a';
+  ctx.fillRect(x, y, s, 2);
+  ctx.fillRect(x, y, 2, s);
+}
+
+function drawFloor(x, y, s) {
+  ctx.fillStyle = '#161f33';
+  ctx.fillRect(x, y, s, s);
+  // subtle grid
+  ctx.fillStyle = '#1e2d4a';
+  ctx.fillRect(x, y, s-1, s-1);
+}
+
+function drawTarget(x, y, s) {
+  const cx = x + s/2, cy = y + s/2;
+  const r = s * 0.22;
+  ctx.strokeStyle = '#e94560';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.stroke();
+  // Cross
+  ctx.beginPath();
+  ctx.moveTo(cx - r*1.3, cy); ctx.lineTo(cx + r*1.3, cy);
+  ctx.moveTo(cx, cy - r*1.3); ctx.lineTo(cx, cy + r*1.3);
+  ctx.stroke();
+}
+
+function drawBox(x, y, s, onTarget) {
+  const pad = Math.ceil(s * 0.1);
+  const bx = x + pad, by = y + pad;
+  const bs = s - pad*2;
+
+  if (onTarget) {
+    ctx.fillStyle = '#2d7a2d';
+    ctx.fillRect(bx, by, bs, bs);
+    ctx.fillStyle = '#4caf50';
+    ctx.fillRect(bx, by, bs, bs - 2);
+    ctx.fillRect(bx, by, bs - 2, bs);
+    ctx.fillStyle = '#80e27e';
+    ctx.fillRect(bx, by, bs, 3);
+    ctx.fillRect(bx, by, 3, bs);
+    // Check mark
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = Math.max(2, s*0.07);
+    ctx.beginPath();
+    ctx.moveTo(bx + bs*0.25, by + bs*0.5);
+    ctx.lineTo(bx + bs*0.45, by + bs*0.7);
+    ctx.lineTo(bx + bs*0.75, by + bs*0.3);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#8b5e14';
+    ctx.fillRect(bx, by, bs, bs);
+    ctx.fillStyle = '#c0882a';
+    ctx.fillRect(bx, by, bs, bs - 2);
+    ctx.fillRect(bx, by, bs - 2, bs);
+    ctx.fillStyle = '#f5a623';
+    ctx.fillRect(bx, by, bs, 3);
+    ctx.fillRect(bx, by, 3, bs);
+    // Box label
+    ctx.fillStyle = '#8b5e14';
+    ctx.fillRect(bx + bs*0.2, by + bs*0.2, bs*0.6, bs*0.6);
+    ctx.strokeStyle = '#f5a623';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx + bs*0.2, by + bs*0.2, bs*0.6, bs*0.6);
+  }
+}
+
+function drawPlayer(x, y, s, onTarget) {
+  const cx = x + s/2, cy = y + s/2;
+  const headR = s * 0.17;
+  const bodyH = s * 0.28;
+  const bodyW = s * 0.28;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 1, cy + s*0.38, bodyW*0.7, s*0.07, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#0077a8';
+  ctx.fillRect(cx - bodyW/2, cy - s*0.05, bodyW, bodyH);
+  ctx.fillStyle = '#00b4d8';
+  ctx.fillRect(cx - bodyW/2, cy - s*0.08, bodyW, bodyH - 2);
+
+  // Head
+  ctx.fillStyle = '#ffd89b';
+  ctx.beginPath();
+  ctx.arc(cx, cy - s*0.15, headR, 0, Math.PI*2);
+  ctx.fill();
+  // Helmet
+  ctx.fillStyle = '#ffb700';
+  ctx.beginPath();
+  ctx.arc(cx, cy - s*0.15, headR, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(cx - headR*1.2, cy - s*0.15, headR*2.4, headR*0.4);
+
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.fillRect(cx - headR*0.5, cy - s*0.18, headR*0.35, headR*0.35);
+  ctx.fillRect(cx + headR*0.15, cy - s*0.18, headR*0.35, headR*0.35);
+}
+
+// ============================================================
+// UI
+// ============================================================
+function showClearScreen() {
+  const moves = state.moves;
+  const par = LEVELS[state.level].par;
+  let stars = '★★★';
+  if (moves > par * 1.5) stars = '★☆☆';
+  else if (moves > par) stars = '★★☆';
+  document.getElementById('clear-stars').textContent = stars;
+  document.getElementById('clear-msg').textContent = `手数: ${moves}  / パー: ${par}`;
+  document.getElementById('clear-screen').classList.remove('hidden');
+}
+
+function showToast(msg, duration=1800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function showLevelSelect() {
+  const grid = document.getElementById('level-grid');
+  grid.innerHTML = '';
+  LEVELS.forEach((lv, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'level-btn' + (state.cleared[i] !== undefined ? ' cleared' : '') + (i === state.level ? ' current' : '');
+    btn.textContent = i + 1;
+    btn.title = lv.name;
+    btn.onclick = () => {
+      loadLevel(i);
+      document.getElementById('level-screen').classList.add('hidden');
+    };
+    grid.appendChild(btn);
+  });
+  document.getElementById('level-screen').classList.remove('hidden');
+}
+
+// ============================================================
+// Input handling
+// ============================================================
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+    e.preventDefault();
+    if (e.key === 'ArrowUp')    move(0,-1);
+    if (e.key === 'ArrowDown')  move(0,1);
+    if (e.key === 'ArrowLeft')  move(-1,0);
+    if (e.key === 'ArrowRight') move(1,0);
+  }
+  if (e.key === 'z' || e.key === 'Z') undo();
+  if (e.key === 'r' || e.key === 'R') loadLevel(state.level);
+});
+
+// D-Pad buttons
+function addDirBtn(id, dx, dy) {
+  const btn = document.getElementById(id);
+  let interval = null;
+  let timeout = null;
+
+  const doMove = () => move(dx, dy);
+
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    doMove();
+    btn.classList.add('pressed');
+    timeout = setTimeout(() => {
+      interval = setInterval(doMove, 120);
+    }, 350);
+  });
+
+  const stop = () => {
+    btn.classList.remove('pressed');
+    clearTimeout(timeout);
+    clearInterval(interval);
+  };
+  btn.addEventListener('pointerup', stop);
+  btn.addEventListener('pointerleave', stop);
+  btn.addEventListener('pointercancel', stop);
+}
+
+addDirBtn('btn-up',    0, -1);
+addDirBtn('btn-down',  0,  1);
+addDirBtn('btn-left', -1,  0);
+addDirBtn('btn-right', 1,  0);
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-restart').addEventListener('click', () => loadLevel(state.level));
+document.getElementById('btn-levels').addEventListener('click', showLevelSelect);
+
+// Swipe on canvas
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  touchStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+}, {passive:true});
+canvas.addEventListener('touchend', e => {
+  if (!touchStart) return;
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  if (Math.max(adx, ady) < 20) return;
+  if (adx > ady) move(dx > 0 ? 1 : -1, 0);
+  else           move(0, dy > 0 ? 1 : -1);
+  touchStart = null;
+}, {passive:true});
+
+// Overlay buttons
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('title-screen').classList.add('hidden');
+  loadLevel(state.level);
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  document.getElementById('clear-screen').classList.add('hidden');
+  const next = state.level + 1;
+  if (next >= LEVELS.length) {
+    document.getElementById('allclear-screen').classList.remove('hidden');
+  } else {
+    loadLevel(next);
+  }
+});
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('clear-screen').classList.add('hidden');
+  loadLevel(state.level);
+});
+
+document.getElementById('btn-close-levels').addEventListener('click', () => {
+  document.getElementById('level-screen').classList.add('hidden');
+});
+
+document.getElementById('btn-allclear').addEventListener('click', () => {
+  document.getElementById('allclear-screen').classList.add('hidden');
+  state.cleared = [];
+  loadLevel(0);
+});
+
+// ============================================================
+// Progress persistence
+// ============================================================
+function saveProgress() {
+  try {
+    localStorage.setItem('sokoban_cleared', JSON.stringify(state.cleared));
+    localStorage.setItem('sokoban_level', state.level);
+  } catch(e) {}
+}
+
+function loadProgress() {
+  try {
+    const c = localStorage.getItem('sokoban_cleared');
+    if (c) state.cleared = JSON.parse(c);
+    const l = localStorage.getItem('sokoban_level');
+    if (l !== null) state.level = Math.min(parseInt(l), LEVELS.length - 1);
+  } catch(e) {}
+}
+
+// ============================================================
+// Resize
+// ============================================================
+window.addEventListener('resize', () => {
+  if (document.getElementById('title-screen').classList.contains('hidden')) {
+    render();
+  }
+});
+
+// ============================================================
+// Boot
+// ============================================================
+loadProgress();
+// Don't auto-start — show title screen
+</script>
+
+<script>
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
