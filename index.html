@@ -65,6 +65,13 @@
     letter-spacing: 1px;
   }
 
+  #version {
+    font-size: 9px;
+    color: #555;
+    margin-top: 2px;
+    font-family: monospace;
+  }
+
   #info {
     display: flex;
     gap: 16px;
@@ -272,7 +279,10 @@
 <body>
 
 <div id="header">
-  <div id="title">倉庫番</div>
+  <div>
+    <div id="title">倉庫番</div>
+    <div id="version">v1.3.0</div>
+  </div>
   <div id="info">
     <div>ステージ <span id="lvl-disp">1</span></div>
     <div>手数 <span id="move-disp">0</span></div>
@@ -321,6 +331,7 @@
 <div class="overlay hidden" id="clear-screen">
   <div class="overlay-box">
     <div class="overlay-title">STAGE CLEAR!</div>
+    <div class="overlay-sub" id="clear-stage" style="color:var(--gold);font-size:12px;margin-bottom:4px"></div>
     <div class="stars" id="clear-stars">★★★</div>
     <div class="overlay-sub" id="clear-msg">手数: 0</div>
     <button class="overlay-btn" id="btn-next">次のステージ ▶</button>
@@ -367,13 +378,18 @@ const LEVELS = [
       "####",
     ]
   },
-  // M44
+  // M19
   {
     name: "入門2",
     map: [
-      "#####",
-      "#@$.#",
-      "#####",
+      "########",
+      "#   .. #",
+      "#  @$$ #",
+      "##### ##",
+      "   #  #",
+      "   #  #",
+      "   #  #",
+      "   ####",
     ]
   },
   // M9
@@ -989,13 +1005,13 @@ function drawPlayer(x, y, s, onTarget) {
 // ============================================================
 function showClearScreen() {
   const moves = state.moves;
-  // Star rating based on absolute move count thresholds
   const lv = LEVELS[state.level];
   const boxes = lv.map.reduce((s, r) => s + (r.match(/[$*]/g)||[]).length, 0);
   const thres = boxes * 12;
   let stars = '★★★';
   if (moves > thres * 2) stars = '★☆☆';
   else if (moves > thres) stars = '★★☆';
+  document.getElementById('clear-stage').textContent = `STAGE ${state.level + 1}  ${lv.name}`;
   document.getElementById('clear-stars').textContent = stars;
   document.getElementById('clear-msg').textContent = `手数: ${moves}`;
   document.getElementById('clear-screen').classList.remove('hidden');

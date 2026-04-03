@@ -1,4 +1,4 @@
-const CACHE = 'sokoban-v1';
+const CACHE = 'sokoban-v1.3';
 const ASSETS = [
   './',
   './index.html',
